@@ -1,0 +1,4 @@
+# Wi-Fi credentials read by code.py. WPA2-Personal only (no enterprise/eduroam, no captive portals).
+# For an open network, leave the password as "".
+CIRCUITPY_WIFI_SSID = "YourNetworkName"
+CIRCUITPY_WIFI_PASSWORD = ""
