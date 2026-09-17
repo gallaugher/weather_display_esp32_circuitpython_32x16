@@ -1,4 +1,19 @@
-# Wi-Fi credentials read by code.py. WPA2-Personal only (no enterprise/eduroam, no captive portals).
-# For an open network, leave the password as "".
+# Copy this file to CIRCUITPY/settings.toml and edit.
+
+# Wi-Fi (WPA2-Personal only; no enterprise/eduroam or captive-portal networks).
+# For an open network leave the password as "".
 CIRCUITPY_WIFI_SSID = "YourNetworkName"
 CIRCUITPY_WIFI_PASSWORD = ""
+
+# Where to show weather for: a postal code or a place name. Examples:
+#   "02467"            "Newton, MA"          "Chicago"
+#   "SW1A 1AA"         "Toronto, Canada"     "Lisbon, Portugal"
+# City names work worldwide; postal codes work for most countries.
+LOCATION = "02467"
+
+# Temperature units: "F" or "C"
+UNITS = "F"
+
+# Optional: skip the place lookup and use exact coordinates instead.
+# LAT = "42.3355"
+# LON = "-71.1685"

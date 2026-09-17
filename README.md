@@ -73,14 +73,18 @@ If your panels are mounted differently, that one function is all you change. `co
 1. Install CircuitPython 10.x on the board with the [circuitpython.org web installer](https://circuitpython.org/board/yd_esp32_s3_n16r8/): hold BOOT, tap RST, release BOOT, then follow the installer. When it asks you to select the YDESP32S3 drive, press RST once and pick that drive.
 2. From the [CircuitPython library bundle](https://circuitpython.org/libraries), copy these folders into `CIRCUITPY/lib/`: `adafruit_requests`, `adafruit_connection_manager`, `adafruit_ntp`. (`neopixel` is built into this board's firmware.)
 3. Copy `code.py` and `weather_gfx.py` to `CIRCUITPY/`.
-4. Copy `settings.toml.example` to `CIRCUITPY/settings.toml` and enter your Wi-Fi name and password. For an open network leave the password as `""`. CircuitPython supports WPA2-Personal only — not enterprise (eduroam-style) or captive-portal networks. On a MAC-registered campus network, the board's MAC address is in `boot_out.txt` on the CIRCUITPY drive.
-5. Set your location at the top of `code.py` (`LAT`, `LON`). Time zone and daylight saving come from the weather API automatically.
+4. Copy `settings.toml.example` to `CIRCUITPY/settings.toml` and edit it:
+   - `CIRCUITPY_WIFI_SSID` / `CIRCUITPY_WIFI_PASSWORD` — your Wi-Fi. For an open network leave the password as `""`. CircuitPython supports WPA2-Personal only, not enterprise (eduroam-style) or captive-portal networks. On a MAC-registered campus network, the board's MAC address is in `boot_out.txt` on the CIRCUITPY drive.
+   - `LOCATION` — a postal code (`"02467"`) or a place name (`"Newton, MA"`, `"Lisbon, Portugal"`). City names work anywhere in the world; postal codes work for most countries. The board looks up the coordinates at startup and scrolls the place it found across the panel, so you can see it picked the right town. To pin exact coordinates instead, set `LAT` and `LON`.
+   - `UNITS` — `"F"` or `"C"`.
 
-Press RST. The panel shows **WIFI** in blue while it connects (red while retrying), then the weather. The serial console prints the raw forecast JSON on the first fetch, one summary line per refresh, and the time whenever the clock resyncs.
+That's the whole configuration. Time zone and daylight-saving time are handled automatically: the weather API reports the UTC offset in effect for the location, and the clock resyncs with it every hour.
+
+Press RST. The panel shows **WIFI** in blue while it connects (red while retrying), scrolls the resolved location name (or **LOC?** in red if the lookup failed — check the spelling in `settings.toml`), then shows the weather. The serial console prints the raw forecast JSON on the first fetch, one summary line per refresh, and the time whenever the clock resyncs.
 
 ## How the code works
 
-`code.py` connects to Wi-Fi, then loops: every ten minutes it fetches the forecast (current temperature and weather code, day/night flag, and two days of highs, lows, precipitation probability and weather codes) and every hour it sets the real-time clock from NTP using the UTC offset the weather API returned. The rest of the loop is a page scheduler: each page has a dwell time (the ticker runs until its message finishes), and when it's time to change, the old and new screens are rendered and a 16-step slide plays between them.
+`code.py` connects to Wi-Fi, turns the `LOCATION` from `settings.toml` into coordinates with Open-Meteo's geocoding service, then loops: every ten minutes it fetches the forecast (current temperature and weather code, day/night flag, and two days of highs, lows, precipitation probability and weather codes) and every hour it sets the real-time clock from NTP using the UTC offset the weather API returned. The rest of the loop is a page scheduler: each page has a dwell time (the ticker runs until its message finishes), and when it's time to change, the old and new screens are rendered and a 16-step slide plays between them.
 
 `weather_gfx.py` has the panel mapping, a 3×5 pixel font (digits, A–Z, and a few symbols), the 8×8 icons as small text pictures with one letter per color, and one render function per page. Each render function returns a dictionary of `(x, y) -> (r, g, b)`; `show()` in `code.py` pushes that through `xy()` to the strip. Because there's no hardware in `weather_gfx.py`, `preview.py` can call the same functions on a laptop and draw the result with Pillow.
 
@@ -88,7 +92,6 @@ Press RST. The panel shows **WIFI** in blue while it connects (red while retryin
 
 | Setting | Default | What it does |
 |---|---|---|
-| `LAT`, `LON` | Boston College | Forecast location |
 | `BRIGHT_DAY` / `BRIGHT_NIGHT` | 0.12 / 0.05 | Brightness; keep daytime ≤ 0.12 for 512 pixels on a 4 A supply |
 | `PAGE_SEC` | 10 / 6 / 6 | Seconds for the today, clock and tomorrow pages |
 | `ICON_FRAME` | 0.4 | Icon animation speed (seconds per frame) |
@@ -100,7 +103,7 @@ Press RST. The panel shows **WIFI** in blue while it connects (red while retryin
 
 - `code.py` – Wi-Fi, forecast fetch, NTP clock, page cycling and animation
 - `weather_gfx.py` – panel mapping, font, icons, page renderers (pure Python)
-- `settings.toml.example` – Wi-Fi credentials template; copy to `settings.toml` on the board (`settings.toml` is git-ignored)
+- `settings.toml.example` – Wi-Fi, location and units template; copy to `settings.toml` on the board (`settings.toml` is git-ignored)
 - `corner_test.py` – verifies the panel mapping
 - `preview.py` – renders the pages to `preview.png` on a computer (`pip install pillow`)
 - `preview.png` – the rendered pages

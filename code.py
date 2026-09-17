@@ -1,7 +1,7 @@
 # 32x16 NeoPixel weather display  (two 32x8 panels, lower one rotated 180)
 # Board: YD-ESP32-S3 N16R8, CircuitPython 10.x
 # Wiring: panel DIN -> GPIO15, panel GND -> ESP32 GND, panel power from a 5V 4A brick
-# Files:  code.py, weather_gfx.py, settings.toml (Wi-Fi)
+# Files:  code.py, weather_gfx.py, settings.toml (Wi-Fi, LOCATION, UNITS)
 # Libs:   adafruit_requests, adafruit_connection_manager, adafruit_ntp  (in /lib)
 # Data:   Open-Meteo (free, no API key); time from NTP
 #
@@ -12,8 +12,15 @@ import board, neopixel, wifi, socketpool, ssl
 import adafruit_requests, adafruit_ntp
 import weather_gfx as gfx
 
-# ---------------- settings ----------------
-LAT, LON = 42.3355, -71.1685          # Boston College
+# ---------------- settings (location and units come from settings.toml) ----------------
+#   LOCATION = "02467"            a postal code or a place name, e.g. "Newton, MA", "Lisbon, Portugal"
+#   UNITS    = "F"                "F" or "C"
+#   LAT / LON                     optional: skip the lookup and use these coordinates
+LOCATION = os.getenv("LOCATION") or "Boston College"
+UNITS    = (os.getenv("UNITS") or "F").upper()
+LAT, LON = os.getenv("LAT"), os.getenv("LON")
+gfx.UNITS = UNITS
+
 REFRESH_SEC   = 600                    # weather refresh
 NTP_SEC       = 3600                   # clock resync
 BRIGHT_DAY    = 0.12                   # 512 px on a 4 A brick: keep <= 0.12 for all colors
@@ -23,11 +30,15 @@ ICON_FRAME    = 0.4                    # icon animation step
 SCROLL_STEP   = 0.06                   # ticker: seconds per pixel
 PAGES         = ["weather", "clock", "tomorrow", "ticker"]
 
-URL = ("https://api.open-meteo.com/v1/forecast"
-       f"?latitude={LAT}&longitude={LON}"
-       "&current=temperature_2m,weather_code,is_day"
-       "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
-       "&temperature_unit=fahrenheit&timezone=auto&forecast_days=2")
+GEO_URL = "https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&name="
+
+def weather_url(lat, lon):
+    unit = "celsius" if UNITS == "C" else "fahrenheit"
+    return ("https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            "&current=temperature_2m,weather_code,is_day"
+            "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code"
+            f"&temperature_unit={unit}&timezone=auto&forecast_days=2")
 
 pixels = neopixel.NeoPixel(board.GPIO15, 512, brightness=BRIGHT_DAY, auto_write=False)
 
@@ -60,6 +71,43 @@ print("Connected, IP", wifi.radio.ipv4_address)
 pool = socketpool.SocketPool(wifi.radio)
 requests = adafruit_requests.Session(pool, ssl.create_default_context())
 utc_offset = 0                          # seconds; comes from Open-Meteo (handles DST)
+
+def url_quote(s):
+    return "".join(ch if ch.isalpha() or ch.isdigit() else "%%%02X" % ord(ch) for ch in s)
+
+def scroll_message(msg, color=(200, 200, 200)):
+    width = gfx.text_width(msg)
+    for x in range(gfx.W, -width - 1, -1):
+        show(gfx.render_message(msg, x, color))
+        time.sleep(0.04)
+
+def geocode(place):
+    """place name or postal code -> (lat, lon, label). Raises on no match."""
+    r = requests.get(GEO_URL + url_quote(place), timeout=15)
+    data = r.json()
+    r.close()
+    hit = data["results"][0]
+    label = hit["name"]
+    if hit.get("admin1") and hit.get("country_code") == "US":
+        label += " " + hit["admin1"]
+    elif hit.get("country"):
+        label += " " + hit["country"]
+    return hit["latitude"], hit["longitude"], label
+
+if LAT and LON:
+    LAT, LON, place_label = float(LAT), float(LON), f"{LAT} {LON}"
+else:
+    while True:
+        try:
+            LAT, LON, place_label = geocode(LOCATION)
+            break
+        except Exception as e:
+            print(f"Could not find location '{LOCATION}':", e)
+            show_text("LOC?", (200, 40, 40))
+            time.sleep(15)
+print(f"Location: {place_label}  ({LAT}, {LON})  units {UNITS}")
+scroll_message(place_label.upper())
+URL = weather_url(LAT, LON)
 
 def fetch_weather(first=False):
     global utc_offset

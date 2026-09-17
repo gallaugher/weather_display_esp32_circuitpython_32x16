@@ -66,7 +66,11 @@ COOL  = (40, 140, 255); COLD = (150, 200, 255)
 HI_C  = (255, 90, 40);  LO_C = (60, 120, 255);  DIM  = (70, 70, 70)
 CLOCK = (255, 200, 120); DATE = (120, 160, 255); TICK = (200, 200, 200)
 
+UNITS = "F"            # set by code.py from settings.toml; thresholds below are in F
+
 def temp_color(t):
+    if UNITS == "C":
+        t = t * 9 / 5 + 32
     if t >= 85: return HOT
     if t >= 70: return WARM
     if t >= 55: return MILD
@@ -243,6 +247,12 @@ def render_ticker(wx, frame_no, message, offset):
     x = draw_text(buf, str(t), 10, 1, temp_color(t))
     draw_text(buf, "°", x, 1, temp_color(t))
     draw_text(buf, message, offset, 10, TICK)
+    return buf
+
+def render_message(message, offset, color=TICK):
+    """A bare scrolling message, vertically centered (used at startup)."""
+    buf = {}
+    draw_text(buf, message, offset, 5, color)
     return buf
 
 def message_for(wx):
